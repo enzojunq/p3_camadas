@@ -6,57 +6,60 @@ from enlace import *
 serialName = "/dev/tty.usbmodem1101"  # Altere para a porta correta
 com1 = enlace(serialName)
 
-def main():
+# Configurações do datagrama
+HEAD_SIZE = 12
+PAYLOAD_SIZE = 50
+EOP = b'\xFF\xFF\xFF'
+
+def create_packet(packet_num, total_packets, payload):
+    # Criar o cabeçalho com o número do pacote e o total de pacotes
+    head = struct.pack('!II', packet_num, total_packets) + b'\x00' * (HEAD_SIZE - 8)
+    return head + payload + EOP
+
+def handshake():
+    # Iniciar o handshake para verificar se o servidor está ativo
+    com1.sendData(b'HELLO')
+    response, _ = com1.getData(4)
+    return response == b'ACK'
+
+def send_file(file_path):
     try:
         # Habilitar comunicação
         com1.enable()
         
-        time.sleep(.2)
-        print('Cliente: Enviando byte de sacrifício')
-        com1.sendData(b'00')
-        print('Cliente: Byte de sacrifício enviado')
-        time.sleep(1)
+        # Realizar o handshake
+        if not handshake():
+            print("Servidor inativo. Tentar novamente? S/N")
+            return
         
+        # Abrir o arquivo e preparar para envio
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+            total_packets = len(file_data) // PAYLOAD_SIZE + (1 if len(file_data) % PAYLOAD_SIZE != 0 else 0)
         
-        print("Cliente: Comunicação habilitada")
+        for i in range(total_packets):
+            # Fragmentar o arquivo em pacotes
+            start = i * PAYLOAD_SIZE
+            end = start + PAYLOAD_SIZE
+            payload = file_data[start:end]
+            
+            # Criar o datagrama
+            packet = create_packet(i + 1, total_packets, payload)
+            com1.sendData(packet)
+            print(f"Pacote {i + 1}/{total_packets} enviado")
+            
+            # Aguardar a confirmação do servidor
+            response, _ = com1.getData(3)  # Receber ACK/NACK
+            if response != b'ACK':
+                print(f"Erro no pacote {i + 1}. Reenviando...")
+                return
 
-        # Números a serem enviados (exemplo com números hard coded)
-        numbers = [45.450000, -1.435670, 1.23e2, -3.14, 0.000123, 100, 100]
-        
-        
-        # numbers = [1,2,3,4,5]
-        print("Cliente: Números a serem enviados:", numbers)
-
-        # Enviar cada número em formato IEEE-754
-        for number in numbers:
-            binary_representation = struct.pack('f', number)
-            com1.sendData(binary_representation)
-            print(f'Cliente: Enviado {number}')
-            time.sleep(.1)
-
-        # Aguardar a resposta do servidor
-        timeout = 5
-        start_time = time.time()
-        response_received = False
-
-        while (time.time() - start_time) < timeout:
-            response, _ = com1.getData(4)  # Espera por 4 bytes (soma em ponto flutuante)
-            if response:
-                sum_result = struct.unpack('f', response)[0]
-                print(f'Cliente: Soma recebida do servidor: {sum_result}')
-                response_received = True
-                break
-
-        if not response_received:
-            print("Cliente: Time out - Nenhuma resposta do servidor")
-
-        # Finalizar a comunicação
+        print("Envio concluído.")
         com1.disable()
-        print("Cliente: Comunicação encerrada")
 
     except Exception as e:
-        print("Cliente: Ocorreu um erro:", e)
+        print(f"Ocorreu um erro: {e}")
         com1.disable()
 
 if __name__ == "__main__":
-    main()
+    send_file('arquivo_a_ser_enviado.txt')
