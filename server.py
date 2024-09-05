@@ -31,10 +31,13 @@ def main():
         
         # Esperar o handshake do cliente
         handshake_data, _ = com2.getData(5)
+        print(f"Servidor: Dados recebidos no handshake: {handshake_data}")
+        
         if handshake_data == b'HELLO':
-            com2.sendData(b'ACK')
+            print("Servidor: Respondendo ao handshake com ACK")
+            com2.sendData(b'ACK')  # Enviar confirmação ao cliente
         else:
-            print("Falha no handshake")
+            print("Servidor: Falha no handshake")
             com2.disable()
             return
         

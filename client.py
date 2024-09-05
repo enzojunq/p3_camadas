@@ -18,9 +18,18 @@ def create_packet(packet_num, total_packets, payload):
 
 def handshake():
     # Iniciar o handshake para verificar se o servidor está ativo
-    com1.sendData(b'HELLO')
+    print("Cliente: Iniciando handshake")
+    com1.sendData(b'HELLO')  # Envia mensagem de handshake
+    
+    # Esperar resposta do servidor
     response, _ = com1.getData(4)
-    return response == b'ACK'
+    
+    if response == b'ACK':  # Espera confirmação de ACK do servidor
+        print("Cliente: Handshake bem-sucedido!")
+        return True
+    else:
+        print(f"Cliente: Falha no handshake. Resposta recebida: {response}")
+        return False
 
 def send_file(file_path):
     try:
