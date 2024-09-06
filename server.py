@@ -7,7 +7,6 @@ com2 = enlace(serialName)
 
 # Configurações do datagrama
 HEAD_SIZE = 12
-PAYLOAD_SIZE = 50
 EOP = b'\xFF\xFF\xFF'
 
 def verify_packet(packet):
@@ -18,15 +17,27 @@ def verify_packet(packet):
     head = packet[:HEAD_SIZE]
     payload = packet[HEAD_SIZE:-3]
     
-    # Extrair informações do cabeçalho (número do pacote, total de pacotes)
-    packet_num, total_packets = struct.unpack('!II', head[:8])
+    # Extrair informações do cabeçalho (número do pacote, total de pacotes e tamanho do payload)
+    packet_num, total_packets, expected_payload_size = struct.unpack('!III', head)
     
+    # Verificar o tamanho do payload recebido
+    if len(payload) != expected_payload_size:
+        print(f"Erro: Tamanho do payload incorreto no pacote {packet_num}. Esperado: {expected_payload_size}, Recebido: {len(payload)}")
+        return False, packet_num, total_packets, None
+
     return True, packet_num, total_packets, payload
 
 def main():
     try:
         # Habilitar comunicação
         com2.enable()
+
+        # Receber byte de sacrifício e limpar buffer
+        print("Servidor: esperando 1 byte de sacrifício")
+        rxBuffer, nRx = com2.getData(1)
+        com2.rx.clearBuffer()
+        time.sleep(0.1)
+        
         print("Servidor: Aguardando handshake...")
         
         # Esperar o handshake do cliente
@@ -51,9 +62,14 @@ def main():
             valid, packet_num, total_packets, payload = verify_packet(packet)
             
             if not valid or packet_num != last_packet_num + 1:
-                com2.sendData(b'NACK')
-                print(f"Erro no pacote {packet_num}")
-                break
+                if not valid:
+                    print("Erro no pacote - não valido")
+                    com2.sendData(b'NACK')
+                    # break
+                if packet_num != last_packet_num + 1:
+                    print(f"Número do pacote incorreto - esperado {last_packet_num + 1}, recebido {packet_num}")
+                    com2.sendData(b'NACK')
+                    break
             
             # Armazenar o payload recebido
             packets.append(payload)
