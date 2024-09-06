@@ -71,7 +71,7 @@ class RX(object):
         start = time.time()
         while(self.getBufferLen() < size and time.time() - start < 5):
             print("Esperando dados... Tempo restante:", 5 - (time.time() - start))
-            time.sleep(0.05)                 
+            time.sleep(1)                 
         return(self.getBuffer(size))
 
 
